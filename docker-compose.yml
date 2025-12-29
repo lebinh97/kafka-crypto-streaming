@@ -1,0 +1,48 @@
+services:
+  kafka: # kafka data path: /var/lib/kafka/data
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    ports:
+      - "9092:9092"
+      - "29092:29092"   
+    environment:
+      CLUSTER_ID: gPiMi3-yTsmwhktV-4WjUQ
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    restart: always
+
+  kafka-producer:
+    build: "./producer-crypto-price"
+    env_file:
+      - "./producer-crypto-price/.env"
+    depends_on:
+      - kafka
+    container_name: kafka-producer-price
+    restart: always
+
+  kafka-consumer:
+    build: ./consumer-jupyter-spark
+    container_name: kafka-consumer-jupyter-spark
+    ports:
+      - "8888:8888"
+      - "4040:4040" # Spark UI port
+      - "4041:4041" # Spark UI port
+      - "4042:4042" # Spark UI port
+    volumes:
+      - ./consumer-jupyter-spark/notebooks:/opt/workspace
+      - "E:/Work/Kafka Crypto Streaming/consumer-output-delta-lake:/opt/consumer-output-delta-lake"
+    depends_on:
+      - kafka
+    restart: always
