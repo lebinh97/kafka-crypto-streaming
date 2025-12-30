@@ -11,7 +11,7 @@ def env(key, default=None):
 spark = (
     SparkSession.builder
     .appName(env("SPARK_APP_NAME", "KafkaToDeltaTrades"))
-    .config("spark.ui.port", env("SPARK_UI_PORT", "4042"))
+    .config("spark.ui.port", env("SPARK_UI_PORT", "4050"))
     .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
     .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
     .config("spark.driver.memory", env("SPARK_DRIVER_MEMORY", "4g"))

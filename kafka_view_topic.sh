@@ -1,1 +1,4 @@
-kafka-topics --bootstrap-server localhost:9092 --list | grep -v "^__"
+kafka-topics \
+  --bootstrap-server localhost:9092 \
+  --describe \
+  --topic trades.raw
