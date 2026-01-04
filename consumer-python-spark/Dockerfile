@@ -7,6 +7,7 @@ WORKDIR /opt/app
 # - apache/spark image is "bare" (no Kafka / Delta support by default)
 # - Spark loads all JARs under /opt/spark/jars automatically
 # - Avoids --packages at runtime (faster startup, reproducible builds)
+
 RUN mkdir -p /opt/spark/jars && \
     \
     # Kafka source for Structured Streaming (Spark ↔ Kafka integration)
@@ -31,15 +32,27 @@ RUN mkdir -p /opt/spark/jars && \
     \
     # Delta Lake storage layer (transaction log, file actions)
     curl -L -o /opt/spark/jars/delta-storage-3.2.0.jar \
-        https://repo1.maven.org/maven2/io/delta/delta-storage/3.2.0/delta-storage-3.2.0.jar
+        https://repo1.maven.org/maven2/io/delta/delta-storage/3.2.0/delta-storage-3.2.0.jar && \
+    # --------------------------------------------------
+    # Apache Iceberg 1.4.2 (for Spark 3.5.1 + Scala 2.12)
+    # --------------------------------------------------
+    # All-in-one runtime JAR with Iceberg Spark integration (ACID, schema evolution, time travel)
+    curl -L -o /opt/spark/jars/iceberg-spark-runtime-3.5_2.12-1.4.2.jar \
+      https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-spark-runtime-3.5_2.12/1.4.2/iceberg-spark-runtime-3.5_2.12-1.4.2.jar
 
 
 # Copy Spark job
 # COPY consumer_spark_stream.py .
 
 # IMPORTANT:
-# Use shell form so env vars from .env are expanded
-CMD /opt/spark/bin/spark-submit \
+# Use shell form so env vars from .env are expanded (Without sparksubmit, python file cannot run!!)
+# Run candle computation in background, then start main streaming
+CMD \
+    # /opt/spark/bin/spark-submit \
+    # --master local[*] \
+    # --driver-memory 2g \
+    # compute_candles.py & \
+    /opt/spark/bin/spark-submit \
     --master local[*] \
     --driver-memory ${SPARK_DRIVER_MEMORY:-4g} \
     consumer_spark_stream.py

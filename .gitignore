@@ -1,5 +1,6 @@
 venv/
 consumer-output-delta-lake/
+consumer-output-iceberg/*
 kafka-broker-data/
 use_this.pem
 loreal_ssh_key01.pem

@@ -1,10 +1,17 @@
 services:
   kafka:
-    image: confluentinc/cp-kafka:7.5.0
     container_name: kafka
+    image: confluentinc/cp-kafka:7.5.0
     ports:
       - "9092:9092"
       - "29092:29092"
+    
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "kafka:9092"]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
     environment:
       CLUSTER_ID: gPiMi3-yTsmwhktV-4WjUQ
@@ -18,31 +25,33 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
 
-      KAFKA_LOG_DIRS: /var/lib/kafka/data   # ⭐ BẮT BUỘC
+      KAFKA_LOG_DIRS: /var/lib/kafka/data   # ⭐ Kafka data folder location in container
 
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"  # ⭐ KHUYẾN NGHỊ
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"  # ⭐ Force kafka not to auto create topic
 
     volumes:
-      - ./kafka-broker-data:/var/lib/kafka/data   # ⭐ BẮT BUỘC
+      - ./kafka-broker-data:/var/lib/kafka/data   # ⭐ Mount kafka data folder location in container to outside
 
     restart: always
 
-  kafka-producer:
+  kafka-producer-price:
+    container_name: kafka-producer-price
     build: "./producer-crypto-price"
     env_file:
       - "./producer-crypto-price/.env"
     depends_on:
-      - kafka
-    container_name: kafka-producer-price
+      kafka:
+        condition: service_healthy
     restart: always
 
   kafka-consumer-analysis:
+    container_name: kafka-consumer-analysis
+    user: root # This allows spark to use checkpoint folder + iceberk table folder inside container
     build: ./consumer-jupyter-spark
-    container_name: kafka-consumer-jupyter-spark
     ports:
       - "8888:8888"
       - "4040:4040" # Spark UI port
@@ -51,22 +60,47 @@ services:
     volumes:
       - ./consumer-jupyter-spark/notebooks:/opt/workspace
       - ./consumer-output-delta-lake:/opt/consumer-output-delta-lake
+      - ./consumer-output-iceberg:/opt/consumer-output-iceberg
     depends_on:
-      - kafka
-      - kafka-producer
+      kafka:
+        condition: service_healthy
+      kafka-producer-price:
+        condition: service_started
     restart: always
 
   kafka-consumer-stream:
+    container_name: kafka-consumer-stream
+    user: root # This allows spark to use checkpoint folder + iceberk table folder inside container
     build: ./consumer-python-spark
-    container_name: kafka-consumer-python-spark
     env_file:
-    - ./consumer-python-spark/app/.env   # ✅ DÒNG QUAN TRỌNG NHẤT
+    - ./consumer-python-spark/app/.env   # ✅ The python file will use variable inside the .emv file in the same folder
     ports:
       - "4050:4050" # Spark UI port
     volumes:
       - ./consumer-python-spark/app:/opt/app
       - ./consumer-output-delta-lake:/opt/consumer-output-delta-lake
+      - ./consumer-output-iceberg:/opt/consumer-output-iceberg
     depends_on:
       - kafka
-      - kafka-producer
+      - kafka-producer-price
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4050/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: always
+
+  streamlit-dashboard:
+    container_name: streamlit-dashboard
+    user: root # Allows reading Iceberg files from mounted volume
+    build: ./streamlit-dashboard
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./streamlit-dashboard:/app
+      - ./consumer-output-iceberg:/opt/consumer-output-iceberg:ro  # Read-only mount
+    depends_on:
+      kafka-consumer-stream:
+        condition: service_healthy
     restart: always

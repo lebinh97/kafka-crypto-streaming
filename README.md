@@ -19,19 +19,15 @@ docker-compose up -d
 ### 2. ⚠️ REQUIRED: Create Kafka topic (DO NOT SKIP)
 You must create the Kafka topic manually before running the producer or Spark streaming job. If the topic does not exist, the services will not run.
 
-Create topic from host (recommended):
+Create topic from host:
 ```bash
-# Creates topic with partitions = number of PRODUCT_IDS in producer-crypto-price/.env
 ./kafka_create_topic.sh
-
-# If the topic exists and you need to increase partitions to match PRODUCT_IDS:
-./kafka_alter_partitions.sh
 ```
 
 Or inside the Kafka container:
 ```bash
 docker exec -it kafka bash -c "kafka-topics --bootstrap-server localhost:9092 \
- --create --topic trades.raw --partitions <NUM_PARTITIONS> --replication-factor 1"
+ --create --topic trades.raw --partitions 5 --replication-factor 1"
 ```
 
 If the topic is not created, the pipeline will fail. After creating the topic, restarting containers is safe and expected.

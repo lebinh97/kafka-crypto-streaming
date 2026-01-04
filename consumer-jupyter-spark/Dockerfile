@@ -3,7 +3,7 @@ FROM apache/spark:3.5.1
 USER root
 
 RUN apt-get update && apt-get install -y curl python3-pip \
-    && pip3 install --no-cache-dir jupyterlab pyspark delta-spark
+    && pip3 install --no-cache-dir jupyterlab pyspark delta-spark pyiceberg
 
 # Download required JARs into Spark's classpath (/opt/spark/jars)
 RUN mkdir -p /opt/spark/jars && \
@@ -30,7 +30,13 @@ RUN mkdir -p /opt/spark/jars && \
       https://repo1.maven.org/maven2/io/delta/delta-spark_2.12/3.2.0/delta-spark_2.12-3.2.0.jar && \
     # Delta Lake storage layer: abstracts file system operations (required for DeltaCatalog and ACID)
     curl -L -o /opt/spark/jars/delta-storage-3.2.0.jar \
-      https://repo1.maven.org/maven2/io/delta/delta-storage/3.2.0/delta-storage-3.2.0.jar
+      https://repo1.maven.org/maven2/io/delta/delta-storage/3.2.0/delta-storage-3.2.0.jar && \
+    # --------------------------------------------------
+    # Apache Iceberg 1.4.2 (for Spark 3.5.1 + Scala 2.12)
+    # --------------------------------------------------
+    # All-in-one runtime JAR with Iceberg Spark integration (ACID, schema evolution, time travel)
+    curl -L -o /opt/spark/jars/iceberg-spark-runtime-3.5_2.12-1.4.2.jar \
+      https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-spark-runtime-3.5_2.12/1.4.2/iceberg-spark-runtime-3.5_2.12-1.4.2.jar
 
 WORKDIR /opt/workspace
 EXPOSE 8888 4040 4041 4042
