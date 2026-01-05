@@ -51,7 +51,7 @@ spark.sparkContext.setLogLevel("WARN")
 # Paths & Configuration
 iceberg_catalog = env("ICEBERG_CATALOG_NAME", "iceberg")
 iceberg_namespace = env("ICEBERG_NAMESPACE", "crypto")
-iceberg_table = env("ICEBERG_TABLE_NAME", "trades")
+iceberg_table = env("ICEBERG_TABLE_NAME", "trades_stream")
 iceberg_table_identifier = f"{iceberg_catalog}.{iceberg_namespace}.{iceberg_table}"
 checkpoint_path = env("CHECKPOINT_PATH", "/opt/consumer-output-iceberg/checkpoints/crypto-trades")
 partition_field = env("ICEBERG_PARTITION_FIELD", "hour_id")
@@ -115,8 +115,9 @@ def rewrite_iceberg_files():
     """Compact small Iceberg data files, excluding current hour partition"""
     while True:
         try:
-            time.sleep(600)  # Every 30 minutes
             
+            time.sleep(600)  # Every 10 minutes
+
             # Get current hour_id (same format as partition key) - UTC+7
             current_hour_id = datetime.now(timezone(timedelta(hours=7))).strftime("%Y%m%d%H")
             
@@ -125,20 +126,60 @@ def rewrite_iceberg_files():
                 CALL iceberg.system.rewrite_data_files(
                     table => '{iceberg_namespace}.{iceberg_table}',
                     strategy => 'binpack',
-                    where => 'hour_id < "{current_hour_id}"',
-                    options => map(
-                        'target-file-size-bytes', '{env("ICEBERG_TARGET_FILE_SIZE", "134217728")}',
-                        'min-input-files', '{env("ICEBERG_MIN_INPUT_FILES", "2")}'
-                    )
+                    where => 'hour_id < "{current_hour_id}"'
                 )
             """)
             print("✅ [ICEBERG THREAD] rewrite_data_files completed")
+
         except Exception as e:
             print(f"⚠️  [ICEBERG THREAD] rewrite_data_files failed: {e}")
+
+# ============================================================================
+# BACKGROUND THREAD: Metadata File Cleanup
+# Purpose: Delete old metadata files from trades_stream directory (90+ minutes old)
+# ============================================================================
+
+def cleanup_metadata_files():
+    """Delete metadata files older than 90 minutes; runs every 30 minutes."""
+    metadata_dir = f"/opt/consumer-output-iceberg/{iceberg_namespace}/{iceberg_table}/metadata"
+    while True:
+        try:
+            time.sleep(30 * (int(env("ICEBERG_RETENTION_MINUTES", "90"))))  # Run every 30 minutes
+
+            now = time.time()
+            cutoff = now - (int(env("ICEBERG_RETENTION_MINUTES", "90")) * 60)
+
+            if not os.path.exists(metadata_dir):
+                print(f"⚠️  [METADATA CLEANUP] Directory not found: {metadata_dir}")
+                time.sleep(30 * 60)
+                continue
+
+            for filename in os.listdir(metadata_dir):
+                filepath = os.path.join(metadata_dir, filename)
+
+                if os.path.isdir(filepath):
+                    continue
+
+                file_mtime = os.path.getmtime(filepath)
+
+                if file_mtime < cutoff:
+                    try:
+                        os.remove(filepath)
+                        # print(f"Deleted: {filepath}")
+                    except OSError as e:
+                        print(f"Error deleting {filepath}: {e}")
+
+        except Exception as e:
+            print(f"❌ [METADATA CLEANUP] Unexpected error: {e}")
+            time.sleep(30 * (int(env("ICEBERG_RETENTION_MINUTES", "90"))))
+
 
 # Start background threads (daemon mode = auto-stop when main thread exits)
 optimize_thread = threading.Thread(target=rewrite_iceberg_files, daemon=True)
 optimize_thread.start()
+
+metadata_cleanup_thread = threading.Thread(target=cleanup_metadata_files, daemon=True)
+metadata_cleanup_thread.start()
 
 # ============================================================================
 # TABLE INITIALIZATION: Create Iceberg table if not exists

@@ -35,7 +35,6 @@ services:
 
     volumes:
       - ./kafka-broker-data:/var/lib/kafka/data   # ⭐ Mount kafka data folder location in container to outside
-
     restart: always
 
   kafka-producer-price:
@@ -91,16 +90,19 @@ services:
       start_period: 60s
     restart: always
 
-  streamlit-dashboard:
-    container_name: streamlit-dashboard
-    user: root # Allows reading Iceberg files from mounted volume
-    build: ./streamlit-dashboard
+  streamlit-duckdb:
+    container_name: streamlit-duckdb
+    user: root
+    build: ./streamlit-duckdb-dashboard
     ports:
       - "8501:8501"
     volumes:
-      - ./streamlit-dashboard:/app
-      - ./consumer-output-iceberg:/opt/consumer-output-iceberg:ro  # Read-only mount
+      - ./streamlit-duckdb-dashboard/app:/opt/app
+      - ./consumer-output-iceberg:/iceberg_data:ro
+      - ./consumer-output-iceberg:/opt/consumer-output-iceberg:ro
     depends_on:
       kafka-consumer-stream:
         condition: service_healthy
     restart: always
+
+
