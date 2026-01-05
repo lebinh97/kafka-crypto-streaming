@@ -49,17 +49,23 @@ services:
 
   kafka-consumer-analysis:
     container_name: kafka-consumer-analysis
-    user: root # This allows spark to use checkpoint folder + iceberk table folder inside container
+    user: root
     build: ./consumer-jupyter-spark
     ports:
       - "8888:8888"
-      - "4040:4040" # Spark UI port
-      - "4041:4041" # Spark UI port
-      - "4042:4042" # Spark UI port
+      - "4040:4040"
+      - "4041:4041"
+      - "4042:4042"
+
+    environment:
+      - GOOGLE_APPLICATION_CREDENTIALS=/opt/gcp/adc.json
+
     volumes:
       - ./consumer-jupyter-spark/notebooks:/opt/workspace
       - ./consumer-output-delta-lake:/opt/consumer-output-delta-lake
       - ./consumer-output-iceberg:/opt/consumer-output-iceberg
+      - C:/Users/admin/AppData/Roaming/gcloud/application_default_credentials.json:/opt/gcp/adc.json:ro
+
     depends_on:
       kafka:
         condition: service_healthy
@@ -103,6 +109,12 @@ services:
     depends_on:
       kafka-consumer-stream:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     restart: always
 
 
