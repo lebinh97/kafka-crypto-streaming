@@ -1,7 +1,9 @@
 # Kafka Crypto Streaming
 
 ## Objective
-Stream live Coinbase trades into Kafka, process with Spark Structured Streaming, land them in Iceberg, and visualize in the Streamlit + DuckDB dashboard.
+Stream live Coinbase trades into Kafka, process with Spark Structured Streaming, land them in Iceberg, and visualize in the Streamlit + DuckDB dashboard. 
+
+Dashboard ensure maximum delay of 10-15 seconds compare to real-time data
 
 **Live pipeline:**  
 **Coinbase → Kafka → Spark → Iceberg → DuckDB/Streamlit**
@@ -59,31 +61,6 @@ KafkaError{code=_UNKNOWN_PARTITION}
 
 ---
 
-## Run Locally (Without Docker)
-
-### Producer
-```bash
-python producer-crypto-price/producer.py
-```
-Configuration: see `producer-crypto-price/.env` — it streams live trade data from Coinbase into Kafka.
-
-### Spark Structured Streaming consumer
-```bash
-python consumer-python-spark/consumer_spark_stream.py
-```
-Required environment variables:
-- `KAFKA_BOOTSTRAP_SERVERS`
-- `KAFKA_TOPIC`
-- `DELTA_OUTPUT_PATH`
-- `CHECKPOINT_PATH`
-
-### Quick Kafka consumer (debug)
-```bash
-python consumer.py
-```
-Connects to: `localhost:29092`
-
----
 
 ## JupyterLab (On-demand analysis)
 JupyterLab is available at: http://localhost:8888
@@ -102,6 +79,8 @@ The kernel is pre-configured with Apache Spark, Spark SQL, and Delta Lake for in
 - Service: `streamlit-duckdb` (queries Iceberg via DuckDB)
 - Default port: `8501` (exposed in Dockerfile; proxy or tunnel as needed)
 - Live candlesticks + table for a selected symbol/candle size
+
+![alt text](image-1.png)
 
 ---
 
