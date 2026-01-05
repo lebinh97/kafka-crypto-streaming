@@ -1,11 +1,28 @@
 # Kafka Crypto Streaming
 
 ## Objective
-Stream live crypto trades from Coinbase into Kafka, process with Spark Structured Streaming,
-and store results in Delta Lake for analysis using Jupyter lab (Running spark).
+Stream live Coinbase trades into Kafka, process with Spark Structured Streaming, land them in Iceberg, and visualize in the Streamlit + DuckDB dashboard.
 
-**Minimal demo pipeline:**  
-**Coinbase → Kafka → Spark → Delta Lake**
+**Live pipeline:**  
+**Coinbase → Kafka → Spark → Iceberg → DuckDB/Streamlit**
+
+---
+
+## Architecture
+- **Producer (Coinbase)** → publishes live trades to Kafka (`trades.raw`).
+- **Kafka broker** → partitions mapped 1:1 to product IDs.
+- **Spark Structured Streaming consumer** → reads Kafka, enriches timestamps/partition keys, writes to Iceberg (`consumer-output-iceberg/crypto/trades_stream`).
+- **DuckDB + Streamlit dashboard** → queries Iceberg via DuckDB and renders candlestick + table.
+- **Jupyter/Spark notebooks** → ad-hoc exploration on the same Iceberg data.
+
+```mermaid
+flowchart LR
+    A["Coinbase WebSocket<br/>live trades"] --> B["Kafka<br/>topic: trades.raw<br/>partitions map to symbols"]
+    B --> C["Spark Structured Streaming<br/>enrich + partition (hour_id)<br/>write Iceberg"]
+    C --> D["Iceberg table<br/>consumer-output-iceberg/crypto/trades_stream"]
+    D --> E["DuckDB + Streamlit<br/>candlesticks dashboard"]
+    D --> F["Jupyter / Spark notebooks<br/>ad-hoc analysis"]
+```
 
 ---
 
@@ -13,7 +30,7 @@ and store results in Delta Lake for analysis using Jupyter lab (Running spark).
 
 ### 1. Start services
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 ### 2. ⚠️ REQUIRED: Create Kafka topic (DO NOT SKIP)
@@ -75,8 +92,27 @@ The kernel is pre-configured with Apache Spark, Spark SQL, and Delta Lake for in
 ---
 
 ## Useful paths
+- Streamlit dashboard app code: `streamlit-duckdb-dashboard/app/`
+- Iceberg output: `consumer-output-iceberg/crypto/trades_stream/`
 - Notebooks: `consumer-jupyter-spark/notebooks/`
-- Delta Lake output: `consumer-output-delta-lake/delta-trades-table/`
+
+---
+
+## Dashboard
+- Service: `streamlit-duckdb` (queries Iceberg via DuckDB)
+- Default port: `8501` (exposed in Dockerfile; proxy or tunnel as needed)
+- Live candlesticks + table for a selected symbol/candle size
+
+---
+
+## Optimizations
+- Iceberg over Delta for streaming writes (lower write latency, append-friendly).
+- Hourly partitioning (`hour_id`) with partition pruning in readers to cut scan size.
+- DuckDB + Iceberg extension for fast reads without Spark overhead (Streamlit dashboard).
+- File compaction thread (`rewrite_iceberg_files`) to binpack small files for faster reads.
+- Metadata cleanup thread to prune old manifests/metadata and save disk.
+- Kafka offsets + checkpointing for reliable recovery of streaming and batch consumption.
+- JupyterLab with an active Spark session for quick ad-hoc debugging on the same data.
 
 ---
 
